@@ -2,9 +2,16 @@ package sda.spring.productmanagement.services;
 
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import sda.spring.productmanagement.dto.ProductDTO;
 import sda.spring.productmanagement.entities.ProductEntity;
+import sda.spring.productmanagement.exception.TooHighPriceException;
+import sda.spring.productmanagement.mapper.ProductMapper;
 import sda.spring.productmanagement.repositories.ProductRepository;
+
 
 import java.util.List;
 import java.util.Optional;
@@ -15,37 +22,48 @@ import java.util.Optional;
 public class ProductService {
 
     @Autowired
-    private ProductRepository productRepository;
+    private final ProductRepository productRepository;
 
-    public List<ProductEntity> getAllProducts() {
+    public ProductService(ProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+    public ProductDTO createProduct(ProductDTO product) {
+        if(product.getPrice() > 1000_000){
+            throw new TooHighPriceException();
+        }
 
-        return productRepository.findAll();
+        ProductEntity productEntity = this.productRepository.save(ProductMapper.toProductEntity(product));
+        return ProductMapper.toProductDto(productEntity);
+
     }
 
-    public Optional<ProductEntity> getProductById(Long id) {
+    public List<ProductDTO> listAllProducts() {
+        List<ProductEntity> productEntities = this.productRepository.findAll();
 
-        return productRepository.findById(id);
+        return ProductMapper.toProductDTOs(productEntities);
     }
 
-    public ProductEntity createProduct(ProductEntity product) {
+    public Page<ProductDTO> getProductsPaginated(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
 
-        return productRepository.save(product);
+        Page<ProductEntity> productEntityPage = productRepository.findAll(pageable);
+
+        return productEntityPage.map(ProductMapper::toProductDto);
     }
 
-    public ProductEntity updateProduct(Long id, ProductEntity productDetails) {
-        return productRepository.findById(id).map(product -> {
-            product.setName(productDetails.getName());
-            product.setPrice(productDetails.getPrice());
-            product.setDescription(productDetails.getDescription());
-            return productRepository.save(product);
-        }).orElseThrow(() ->new RuntimeException("Product not find with id " + id));
+    public Optional<ProductDTO> getProductById(Long id) {
+        Optional<ProductEntity> productEntity = this.productRepository.findById(id);
+        return productEntity.map(ProductMapper::toProductDto);
     }
+
     public void deleteProduct(Long id) {
-        if(productRepository.existsById(id)) {
-            productRepository.deleteById(id);
-        }
-        else {
-            throw new RuntimeException("Product not find with id " + id);
-        }
+        this.productRepository.deleteById(id);
     }
+
+    public ProductDTO updateProduct(ProductDTO product) {
+        ProductEntity productEntity = this.productRepository.save(ProductMapper.toProductEntity(product));
+
+        return ProductMapper.toProductDto(productEntity);
+    }
+
 }

@@ -1,60 +1,77 @@
 package sda.spring.productmanagement.controllers;
 
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-import sda.spring.productmanagement.entities.ProductEntity;
-import sda.spring.productmanagement.services.ProductService;
 
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import sda.spring.productmanagement.Test;
+import sda.spring.productmanagement.dto.ProductDTO;
+import sda.spring.productmanagement.services.ProductService;
 import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/products")
-@Validated
+@RequestMapping("/api/v1/products")
+
 public class ProductController {
 
-    @Autowired
-    private ProductService productService;
+    private final ProductService productService;
+    private final Test test;
 
-    @GetMapping
-    public List<ProductEntity> getAllProducts() {
-        return productService.getAllProducts();
+    public ProductController(ProductService productService, Test test) {
+        this.productService = productService;
+        this.test = test;
     }
 
-    @GetMapping("/{id}")
-    public Optional<ResponseEntity<ProductEntity>> getProductById(@PathVariable Long id) {
-        Optional<ProductEntity> product = productService.getProductById(id);
-        return product.map(ResponseEntity::ok);
-
-    }
 
     @PostMapping
-    public ResponseEntity<ProductEntity> createProduct(@RequestBody ProductEntity product) {
-        ProductEntity savedProduct = productService.createProduct(product);
+    public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDto) {
+        ProductDTO savedProduct = productService.createProduct(productDto);
+        this.test.printRandomNumber();
+
         return ResponseEntity.ok(savedProduct);
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ProductEntity> updateProduct(@PathVariable Long id, @RequestBody ProductEntity productDetails) {
-        try {
-            ProductEntity updatedProduct = productService.updateProduct(id, productDetails);
-            return ResponseEntity.ok(updatedProduct);
-        } catch (RuntimeException e) {
-           return ResponseEntity.notFound().build();
-        }
+    @GetMapping("/paginated")
+    public Page<ProductDTO> listProductsPaginated(@RequestParam int page, @RequestParam int size) {
+        return productService.getProductsPaginated(page, size);
+    }
+    @GetMapping
+    public ResponseEntity<List<ProductDTO>> fetchAllProducts() {
+        List<ProductDTO> products = productService.listAllProducts();
+
+        return ResponseEntity.ok(products);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ProductDTO> fetchProduct(@PathVariable Long id) {
+        Optional<ProductDTO> product = productService.getProductById(id);
+
+        return product.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ProductEntity> deleteProduct(@PathVariable Long id) {
-        try {
-            productService.deleteProduct(id);
-            return ResponseEntity.noContent().build();
-        } catch (RuntimeException e) {
+    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ProductDTO> updateProduct(@PathVariable Long id, @RequestBody ProductDTO product) {
+        Optional<ProductDTO> foundProduct = productService.getProductById(id);
+
+        if(foundProduct.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+
+        product.setId(id);
+        ProductDTO savedProduct = productService.updateProduct(product);
+
+        return ResponseEntity.ok(savedProduct);
     }
+
 }
